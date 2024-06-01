@@ -80,7 +80,7 @@ def train_vocab(vocab_size):
     prefix = os.path.join(DATA_CACHE_DIR, f"tok{vocab_size}")
 
     # how many shards we'll use for vocab training, kept low for efficiency
-    num_shards = 10
+    num_shards = 1        # Originally 10
 
     # 1) export a large chunk of text as a single text file tiny.txt
     tiny_file = os.path.join(DATA_CACHE_DIR, "tiny.txt")
@@ -88,14 +88,21 @@ def train_vocab(vocab_size):
     shard_filenames = sorted(glob.glob(os.path.join(data_dir, "*.json")))
 
     print(f"Writing temporary file {tiny_file} with {num_shards} shards...")
+    total_rows = 0
     with open(tiny_file, "w", encoding="utf-8") as of:
         for shard in tqdm(shard_filenames[:num_shards]):
             with open(shard, "r") as f:
                 data = json.load(f)
             for example in data:
-                text = example["story"]
-                text = text.strip()
-                of.write(text + "\n")
+                if total_rows < 100:
+                    text = example["story"]
+                    text = text.strip()
+                    of.write(text + "\n")
+                    total_rows += 1
+                 else:
+                    break
+            if total_rows >= 100:
+                break
     print(f"Size is: {os.path.getsize(tiny_file) / 1024 / 1024:.2f} MB")
 
     # 2) train the sentencepiece model
