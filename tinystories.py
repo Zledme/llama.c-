@@ -62,8 +62,16 @@ def download():
 
     # print a single example just for debugging and such
     shard_filenames = sorted(glob.glob(os.path.join(data_dir, "*.json")))
+    total_rows = 0
     with open(shard_filenames[0], "r") as f:
         data = json.load(f)
+        for example in data:
+            if total_rows < 100:
+                total_rows += 1
+            else:
+                break
+        if total_rows >= 100:
+            break
     print("Download done.")
     print(f"Number of shards: {len(shard_filenames)}")
     print(f"Example story:\n{data[0]}")
@@ -99,7 +107,7 @@ def train_vocab(vocab_size):
                     text = text.strip()
                     of.write(text + "\n")
                     total_rows += 1
-                else:
+                 else:
                     break
             if total_rows >= 100:
                 break
@@ -131,18 +139,22 @@ def train_vocab(vocab_size):
     print("Done.")
 
 
-def process_shard(args, vocab_size):
+def process_shard(args, vocab_size, max_rows=100):
     shard_id, shard = args
     tokenizer_model = get_tokenizer_model_path(vocab_size)
     enc = Tokenizer(tokenizer_model)
     with open(shard, "r") as f:
         data = json.load(f)
     all_tokens = []
+    rows_processed = 0
     for example in tqdm(data, position=shard_id):
+        if rows_processed >= max_rows:
+            break
         text = example["story"]
         text = text.strip()  # get rid of leading/trailing whitespace
         tokens = enc.encode(text, bos=True, eos=False)  # encode the text, use BOS
         all_tokens.extend(tokens)
+        rows_processed += 1
     # convert to uint16 nparray
     all_tokens = np.array(all_tokens, dtype=np.uint16)
     # calculate the output filename
@@ -173,7 +185,7 @@ def pretokenize(vocab_size):
         os.makedirs(bin_dir, exist_ok=True)
 
     # process all the shards in a process pool
-    fun = partial(process_shard, vocab_size=vocab_size)
+    fun = partial(process_shard, vocab_size=vocab_size, max_rows = 100)
     with ProcessPoolExecutor() as executor:
         executor.map(fun, enumerate(shard_filenames))
     print("Done.")
