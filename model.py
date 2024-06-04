@@ -39,7 +39,8 @@ class RMSNorm(torch.nn.Module):
 
 
 def precompute_freqs_cis(dim: int, end: int, theta: float = 10000.0):
-    freqs = 1.0 / (theta ** (torch.arange(0, dim, 2)[: (dim // 2)].float() / dim))
+    breakpoint()
+    freqs = 1.0 / (theta ** (torch.arange(0, dim, 2)[: (dim // 3)].float() / dim))
     t = torch.arange(end, device=freqs.device)  # type: ignore
     freqs = torch.outer(t, freqs).float()  # type: ignore
     freqs_cos = torch.cos(freqs)  # real part
@@ -62,8 +63,9 @@ def apply_rotary_emb(
 
     # reshape xq and xk to match the complex representation
     xq_a, xq_b, xq_c = xq.float().reshape(xq.shape[:-1] + (-1, 3)).unbind(-1)
-    xk_a, xk_b, xq_c = xk.float().reshape(xk.shape[:-1] + (-1, 3)).unbind(-1)
-
+    xk_a, xk_b, xk_c = xk.float().reshape(xk.shape[:-1] + (-1, 3)).unbind(-1)
+    
+    #breakpoint()
     # reshape freqs_cos and freqs_sin for broadcasting
     freqs_cos = reshape_for_broadcast(freqs_cos, xq_a)
     freqs_sin = reshape_for_broadcast(freqs_sin, xq_a)
@@ -71,16 +73,16 @@ def apply_rotary_emb(
     # apply rotation using real numbers
     xq_out_a = xq_a * freqs_cos**2 -  xq_b * freqs_sin * freqs_cos + xq_c * freqs_sin
     xq_out_b = xq_a * (freqs_sin + 1 ) * (freqs_sin) * freqs_cos + xq_b * (-freqs_sin**3 + freqs_cos**2) - xq_c * (freqs_sin * freqs_cos)
-    xq_out_c = xq_a * (freqs_sin - freqs_cos**2) * (freq_sin) + xq_b * (freq_sin + 1) * freq_sin * freqs_cos + xq_c * freqs_cos**2
+    xq_out_c = xq_a * (freqs_sin - freqs_cos**2) * (freqs_sin) + xq_b * (freqs_sin + 1) * freqs_sin * freqs_cos + xq_c * freqs_cos**2
     
     xk_out_a = xk_a * freqs_cos**2 -  xk_b * freqs_sin * freqs_cos + xk_c * freqs_sin
     xk_out_b = xk_a * (freqs_sin + 1 ) * (freqs_sin) * freqs_cos + xk_b * (-freqs_sin**3 + freqs_cos**2) - xk_c * (freqs_sin * freqs_cos)
-    xk_out_c = xk_a * (freqs_sin - freqs_cos**2) * (freq_sin) + xk_b * (freq_sin + 1) * freq_sin * freqs_cos + xk_c * freqs_cos**2
+    xk_out_c = xk_a * (freqs_sin - freqs_cos**2) * (freqs_sin) + xk_b * (freqs_sin + 1) * freqs_sin * freqs_cos + xk_c * freqs_cos**2
     
 
     # flatten last two dimensions
-    xq_out = torch.stack([xq_out_r, xq_out_i], dim=-1).flatten(3)
-    xk_out = torch.stack([xk_out_r, xk_out_i], dim=-1).flatten(3)
+    xq_out = torch.stack([xq_out_a, xq_out_b, xq_out_c], dim=-1).flatten(3)
+    xk_out = torch.stack([xk_out_a, xk_out_b, xk_out_c], dim=-1).flatten(3)
 
     return xq_out.type_as(xq), xk_out.type_as(xk)
 
