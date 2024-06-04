@@ -107,7 +107,7 @@ def train_vocab(vocab_size):
                     text = text.strip()
                     of.write(text + "\n")
                     total_rows += 1
-                 else:
+                else:
                     break
             if total_rows >= 100:
                 break
