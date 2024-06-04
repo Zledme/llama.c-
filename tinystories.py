@@ -70,8 +70,6 @@ def download():
                 total_rows += 1
             else:
                 break
-        if total_rows >= 100:
-            break
     print("Download done.")
     print(f"Number of shards: {len(shard_filenames)}")
     print(f"Example story:\n{data[0]}")
@@ -109,8 +107,7 @@ def train_vocab(vocab_size):
                     total_rows += 1
                 else:
                     break
-            if total_rows >= 100:
-                break
+
     print(f"Size is: {os.path.getsize(tiny_file) / 1024 / 1024:.2f} MB")
 
     # 2) train the sentencepiece model
