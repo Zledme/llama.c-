@@ -74,7 +74,7 @@ def download():
     print(f"Number of shards: {len(shard_filenames)}")
     print(f"Example story:\n{data[0]}")
 
-def train_vocab(vocab_size):
+def train_vocab(vocab_size, max_rows):
     """
     Trains a custom sentencepiece tokenizer on the TinyStories dataset.
     The custom tokenizer files will be saved in DATA_CACHE_DIR/tok{N} directories,
@@ -100,7 +100,7 @@ def train_vocab(vocab_size):
             with open(shard, "r") as f:
                 data = json.load(f)
             for example in data:
-                if total_rows < 100:
+                if total_rows < max_rows:
                     text = example["story"]
                     text = text.strip()
                     of.write(text + "\n")
@@ -136,7 +136,7 @@ def train_vocab(vocab_size):
     print("Done.")
 
 
-def process_shard(args, vocab_size, max_rows=100):
+def process_shard(args, vocab_size, max_rows):
     shard_id, shard = args
     tokenizer_model = get_tokenizer_model_path(vocab_size)
     enc = Tokenizer(tokenizer_model)
@@ -172,7 +172,7 @@ def process_shard(args, vocab_size, max_rows=100):
     print(f"Saved {tokenized_filename}, average seqlen: {avg_seq_len:.2f}")
 
 
-def pretokenize(vocab_size):
+def pretokenize(vocab_size, max_rows):
     # iterate the shards and tokenize all of them one by one
     data_dir = os.path.join(DATA_CACHE_DIR, "TinyStories_all_data")
     shard_filenames = sorted(glob.glob(os.path.join(data_dir, "*.json")))
@@ -182,7 +182,7 @@ def pretokenize(vocab_size):
         os.makedirs(bin_dir, exist_ok=True)
 
     # process all the shards in a process pool
-    fun = partial(process_shard, vocab_size=vocab_size, max_rows = 100)
+    fun = partial(process_shard, vocab_size=vocab_size, max_rows = max_rows)
     with ProcessPoolExecutor() as executor:
         executor.map(fun, enumerate(shard_filenames))
     print("Done.")
@@ -278,20 +278,21 @@ if __name__ == "__main__":
 
     To tokenize data with a custom tokenizer we train ourselves with sentencepiece, e.g.:
     python tinystories.py download
-    python tinystories.py train_vocab --vocab_size=2048
-    python tinystories.py pretokenize --vocab_size=2048
+    python tinystories.py train_vocab --vocab_size=2048 --max_rows=100
+    python tinystories.py pretokenize --vocab_size=2048 --max_rows=100
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("stage", type=str, choices=["download", "pretokenize", "train_vocab"])
     parser.add_argument("--vocab_size", type=int, default=0, help="pretokenization vocab size. 0 = use Llama 2 tokenizer.")
+    parser.add_argument("--max_rows", type=int, default=100, help="maximum number of rows to process")
     args = parser.parse_args()
 
     # depending on the stage call the appropriate function
     if args.stage == "download":
         download()
     elif args.stage == "train_vocab":
-        train_vocab(vocab_size=args.vocab_size)
+        train_vocab(vocab_size=args.vocab_size, max_rows=args.max_rows)
     elif args.stage == "pretokenize":
-        pretokenize(vocab_size=args.vocab_size)
+        pretokenize(vocab_size=args.vocab_size, max_rows=args.max_rows)
     else:
         raise ValueError(f"Unknown stage {args.stage}")
