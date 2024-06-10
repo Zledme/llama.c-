@@ -37,7 +37,7 @@ out_dir = "out"
 eval_interval = 2000
 log_interval = 1
 eval_iters = 100
-eval_only = True  # if True, script exits right after the first eval
+eval_only = False  # if True, script exits right after the first eval
 always_save_checkpoint = False  # if True, always save a checkpoint after each eval
 init_from = "scratch"  # 'scratch' or 'resume'
 # wandb logging
@@ -58,7 +58,7 @@ multiple_of = 32
 dropout = 0.0
 # adamw optimizer
 gradient_accumulation_steps = 4  # used to simulate larger batch sizes
-learning_rate = 5e-5  # max learning rate
+learning_rate = 1e-5  # max learning rate
 max_iters = 100000  # total number of training iterations
 weight_decay = 1e-1
 beta1 = 0.9
@@ -69,7 +69,7 @@ decay_lr = True  # whether to decay the learning rate
 warmup_iters = 1000  # how many steps to warm up for
 # system
 device = "cuda"  # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks
-dtype = "float32"  # float32|bfloat16|float16
+dtype = "bfloat16"  # float32|bfloat16|float16
 compile = True  # use PyTorch 2.0 to compile the model to be faster
 # -----------------------------------------------------------------------------
 config_keys = [
