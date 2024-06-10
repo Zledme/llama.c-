@@ -382,7 +382,7 @@ float* forward(Transformer* transformer, int token, int pos) {
                 float v0 = vec[i];
                 float v1 = vec[i+1];
                 float v2 = vec[i+2];
-                vec[i]   = v0 * fcos * fcos - v1 * fsin * fcos + v2 * fsin * fsin;
+                vec[i]   = v0 * fcos * fcos - v1 * fsin * fcos + v2 * fsin;
                 vec[i+1] = v0 * (fsin + 1.0f) * fsin * fcos + v1 * (fcos * fcos - fsin * fsin * fsin) - v2 * fsin * fcos;
                 vec[i+2] = v0 * (fsin - fcos * fcos) * fsin + v1 * (fsin + 1) * fsin * fcos + v2 * fcos * fcos;
             }
