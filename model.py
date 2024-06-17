@@ -78,11 +78,17 @@ def apply_rotary_emb(
     xk_out_b = xk_a * (freqs_sin + 1 ) * (freqs_sin) * freqs_cos + xk_b * (-freqs_sin**3 + freqs_cos**2) - xk_c * (freqs_sin * freqs_cos)
     xk_out_c = xk_a * (freqs_sin - freqs_cos**2) * (freqs_sin) + xk_b * (freqs_sin + 1) * freqs_sin * freqs_cos + xk_c * freqs_cos**2
     
-
     # flatten last two dimensions
     xq_out = torch.stack([xq_out_a, xq_out_b, xq_out_c], dim=-1).flatten(3)
     xk_out = torch.stack([xk_out_a, xk_out_b, xk_out_c], dim=-1).flatten(3)
 
+    # Changing from rotation matrix to quaternion
+    import tensorflow as tf
+    import tensorflow_graphics.geometry.transformation.quaternion as tfg_quaternion
+
+    xq_out = tfg_quaternion.from_rotation_matrix(xq_out)
+    xk_out = tfg_quaternion.from_rotation_matrix(xk_out)
+    
     return xq_out.type_as(xq), xk_out.type_as(xk)
 
 def repeat_kv(x: torch.Tensor, n_rep: int) -> torch.Tensor:
