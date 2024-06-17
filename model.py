@@ -41,23 +41,23 @@ class RMSNorm(torch.nn.Module):
 class RoMaFunctions:
     @staticmethod
     def e_to_q(roll, pitch, yaw):
-        cy = torch.cos(yaw * 0.5)
-        sy = torch.sin(yaw * 0.5)
-        cp = torch.cos(pitch * 0.5)
-        sp = torch.sin(pitch * 0.5)
-        cr = torch.cos(roll * 0.5)
-        sr = torch.sin(roll * 0.5)
+        cy = np.cos(yaw * 0.5)
+        sy = np.sin(yaw * 0.5)
+        cp = np.cos(pitch * 0.5)
+        sp = np.sin(pitch * 0.5)
+        cr = np.cos(roll * 0.5)
+        sr = np.sin(roll * 0.5)
     
         w = cr * cp * cy + sr * sp * sy
         x = sr * cp * cy - cr * sp * sy
         y = cr * sp * cy + sr * cp * sy
         z = cr * cp * sy - sr * sp * cy
     
-        return np.array([w, x, y, z])
+        return torch.tensor([w, x, y, z])
 
     @staticmethod
     def quat_conj(quaternion):
-        return np.array([quaternion[0], -quaternion[1], -quaternion[2], -quaternion[3]])
+        return torch.tensor([quaternion[0], -quaternion[1], -quaternion[2], -quaternion[3]])
 
     @staticmethod
     def quaternion_multiply(q1, q2):
@@ -69,18 +69,19 @@ class RoMaFunctions:
         y_res = w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2
         z_res = w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2
 
-        return np.array([w_res, x_res, y_res, z_res])
+        return torch.tensor([w_res, x_res, y_res, z_res])
 
     @staticmethod
     def qvq_multiply(quaternion, vector):
-        v_quaternion = np.array([0.0, vector[0], vector[1], vector[2]])
+        v_quaternion = torch.tensor([0.0, vector[0], vector[1], vector[2]])
         q_conjugate = RoMaFunctions.quat_conj(quaternion)
         intermediate = RoMaFunctions.quaternion_multiply(quaternion, v_quaternion)
         rotated_vector_quaternion = RoMaFunctions.quaternion_multiply(intermediate, q_conjugate)
 
         x_res, y_res, z_res = rotated_vector_quaternion[1:]
 
-        return np.array([x_res, y_res, z_res])
+        return torch.tensor([x_res, y_res, z_res])
+
 
 def precompute_freqs_cis(dim: int, end: int, theta: float = 10000.0):
     freqs = 1.0 / (theta ** (torch.arange(0, dim, 2)[: (dim // 3)].float() / dim))
