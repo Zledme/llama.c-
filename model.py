@@ -38,13 +38,57 @@ class RMSNorm(torch.nn.Module):
         return output * self.weight
 
 
+class RoMaFunctions:
+    @staticmethod
+    def e_to_q(roll, pitch, yaw):
+        cy = torch.cos(yaw * 0.5)
+        sy = torch.sin(yaw * 0.5)
+        cp = torch.cos(pitch * 0.5)
+        sp = torch.sin(pitch * 0.5)
+        cr = torch.cos(roll * 0.5)
+        sr = torch.sin(roll * 0.5)
+    
+        w = cr * cp * cy + sr * sp * sy
+        x = sr * cp * cy - cr * sp * sy
+        y = cr * sp * cy + sr * cp * sy
+        z = cr * cp * sy - sr * sp * cy
+    
+        return np.array([w, x, y, z])
+
+    @staticmethod
+    def quat_conj(quaternion):
+        return np.array([quaternion[0], -quaternion[1], -quaternion[2], -quaternion[3]])
+
+    @staticmethod
+    def quaternion_multiply(q1, q2):
+        w1, x1, y1, z1 = q1
+        w2, x2, y2, z2 = q2
+
+        w_res = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
+        x_res = w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2
+        y_res = w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2
+        z_res = w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2
+
+        return np.array([w_res, x_res, y_res, z_res])
+
+    @staticmethod
+    def qvq_multiply(quaternion, vector):
+        v_quaternion = np.array([0.0, vector[0], vector[1], vector[2]])
+        q_conjugate = RoMaFunctions.quat_conj(quaternion)
+        intermediate = RoMaFunctions.quaternion_multiply(quaternion, v_quaternion)
+        rotated_vector_quaternion = RoMaFunctions.quaternion_multiply(intermediate, q_conjugate)
+
+        x_res, y_res, z_res = rotated_vector_quaternion[1:]
+
+        return np.array([x_res, y_res, z_res])
+
 def precompute_freqs_cis(dim: int, end: int, theta: float = 10000.0):
     freqs = 1.0 / (theta ** (torch.arange(0, dim, 2)[: (dim // 3)].float() / dim))
     t = torch.arange(end, device=freqs.device)  # type: ignore
     freqs = torch.outer(t, freqs).float()  # type: ignore
     freqs_cos = torch.cos(freqs)  # real part
     freqs_sin = torch.sin(freqs)  # imaginary part
-    return freqs_cos, freqs_sin
+    return freqs, freqs
 
 def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor):
     ndim = x.ndim
@@ -53,21 +97,6 @@ def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor):
     shape = [d if i == 1 or i == ndim - 1 else 1 for i, d in enumerate(x.shape)]
     return freqs_cis.view(shape)
 
-def quaternion_multiply(q, r):
-    w0, x0, y0, z0 = q.unbind(-1)
-    w1, x1, y1, z1 = r.unbind(-1)
-
-    return torch.stack([
-            w0 * w1 - x0 * x1 - y0 * y1 - z0 * z1,
-            w0 * x1 + x0 * w1 + y0 * z1 - z0 * y1,
-            w0 * y1 - x0 * z1 + y0 * w1 + z0 * x1,
-            w0 * z1 + x0 * y1 - y0 * x1 + z0 * w1
-        ], dim = 1)
-
-def rotate_by_quaternion(vectors, quaternion):
-    q_conj = torch.cat([quaternion[..., :1], -quaternion[..., 1:]], dim=-1)
-    vectors = torch.cat([torch.zeros(vectors.shape[:-1] + (1,), device=vectors.device), vectors], dim=-1)
-    return quaternion_multiply(quaternion_multiply(quaternion, vectors), q_conj)[..., 1:]
 
 def apply_rotary_emb(
     xq: torch.Tensor,
@@ -76,19 +105,6 @@ def apply_rotary_emb(
     freqs_sin: torch.Tensor
 ) -> Tuple[torch.Tensor, torch.Tensor]:
 
-    """
-    Need to create qvq* where q = quarternion a + bi + cj + dk and v is the RoFormer equation for 3D matrix
-    q = w + xi + yj + zk
-
-    For rotation, q = cos(θ/2) + sin(θ/2) * i + sin(θ/2) * j + sin(θ/2) * k
-    q = qyaw * qpitch * qroll
-
-    qroll = [cos(θ/2), sin(θ/2)i, 0, 0]
-    qpitch = [cos(θ/2), 0, sin(θ/2)j, 0]
-    qyaw = [cos(θ/2), 0, 0, sin(θ/2)i]
-
-    q* = [q0, -q1, -q2, -q3]
-    """
 
     # reshape xq and xk to match the complex representation
     xq_a, xq_b, xq_c = xq.float().reshape(xq.shape[:-1] + (-1, 3)).unbind(-1)
@@ -96,17 +112,28 @@ def apply_rotary_emb(
     
     #breakpoint()
     # reshape freqs_cos and freqs_sin for broadcasting
-    freqs_cos = reshape_for_broadcast(freqs_cos, xq_a)
-    freqs_sin = reshape_for_broadcast(freqs_sin, xq_a)
+    freqs = reshape_for_broadcast(freqs_cos, xq_a)
+    # freqs_sin = reshape_for_broadcast(freqs_sin, xq_a)
+
+    quaternion = RoMaFunctions.e_to_q(freqs, freqs, freqs)
+    
+    xq_out_a = RoMaFunctions.qvq_multiply(quaternion, xq_a)
+    xq_out_b = RoMaFunctions.qvq_multiply(quaternion, xq_b)
+    xq_out_c = RoMaFunctions.qvq_multiply(quaternion, xq_c)
+
+    xk_out_a = RoMaFunctions.qvq_multiply(quaternion, xk_a)
+    xk_out_b = RoMaFunctions.qvq_multiply(quaternion, xk_b)
+    xk_out_c = RoMaFunctions.qvq_multiply(quaternion, xk_c)
+
 
     # apply rotation using real numbers
-    xq_out_a = xq_a * freqs_cos**2 -  xq_b * freqs_sin * freqs_cos + xq_c * freqs_sin
-    xq_out_b = xq_a * (freqs_sin + 1 ) * (freqs_sin) * freqs_cos + xq_b * (-freqs_sin**3 + freqs_cos**2) - xq_c * (freqs_sin * freqs_cos)
-    xq_out_c = xq_a * (freqs_sin - freqs_cos**2) * (freqs_sin) + xq_b * (freqs_sin + 1) * freqs_sin * freqs_cos + xq_c * freqs_cos**2
+    # xq_out_a = xq_a * freqs_cos**2 -  xq_b * freqs_sin * freqs_cos + xq_c * freqs_sin
+    # xq_out_b = xq_a * (freqs_sin + 1 ) * (freqs_sin) * freqs_cos + xq_b * (-freqs_sin**3 + freqs_cos**2) - xq_c * (freqs_sin * freqs_cos)
+    # xq_out_c = xq_a * (freqs_sin - freqs_cos**2) * (freqs_sin) + xq_b * (freqs_sin + 1) * freqs_sin * freqs_cos + xq_c * freqs_cos**2
     
-    xk_out_a = xk_a * freqs_cos**2 -  xk_b * freqs_sin * freqs_cos + xk_c * freqs_sin
-    xk_out_b = xk_a * (freqs_sin + 1 ) * (freqs_sin) * freqs_cos + xk_b * (-freqs_sin**3 + freqs_cos**2) - xk_c * (freqs_sin * freqs_cos)
-    xk_out_c = xk_a * (freqs_sin - freqs_cos**2) * (freqs_sin) + xk_b * (freqs_sin + 1) * freqs_sin * freqs_cos + xk_c * freqs_cos**2
+    # xk_out_a = xk_a * freqs_cos**2 -  xk_b * freqs_sin * freqs_cos + xk_c * freqs_sin
+    # xk_out_b = xk_a * (freqs_sin + 1 ) * (freqs_sin) * freqs_cos + xk_b * (-freqs_sin**3 + freqs_cos**2) - xk_c * (freqs_sin * freqs_cos)
+    # xk_out_c = xk_a * (freqs_sin - freqs_cos**2) * (freqs_sin) + xk_b * (freqs_sin + 1) * freqs_sin * freqs_cos + xk_c * freqs_cos**2
     
 
     # flatten last two dimensions
@@ -114,12 +141,6 @@ def apply_rotary_emb(
     xk_out = torch.stack([xk_out_a, xk_out_b, xk_out_c], dim=-1).flatten(3)
 
     print(xq_out, xk_out)
-
-    import tensorflow as tf
-    import tensorflow_graphics.geometry.transformation.quaternion as tfg_quaternion # type: ignore
-
-    xq_out = tfg_quaternion.from_rotation_matrix(xq_out)
-    xk_out = tfg_quaternion.from_rotation_matrix(xk_out)
 
     return xq_out.type_as(xq), xk_out.type_as(xk)
 
