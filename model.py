@@ -41,23 +41,23 @@ class RMSNorm(torch.nn.Module):
 class RoMaFunctions:
     @staticmethod
     def e_to_q(roll, pitch, yaw):
-        cy = np.cos(yaw * 0.5)
-        sy = np.sin(yaw * 0.5)
-        cp = np.cos(pitch * 0.5)
-        sp = np.sin(pitch * 0.5)
-        cr = np.cos(roll * 0.5)
-        sr = np.sin(roll * 0.5)
+        cy = torch.cos(yaw * 0.5)
+        sy = torch.sin(yaw * 0.5)
+        cp = torch.cos(pitch * 0.5)
+        sp = torch.sin(pitch * 0.5)
+        cr = torch.cos(roll * 0.5)
+        sr = torch.sin(roll * 0.5)
     
         w = cr * cp * cy + sr * sp * sy
         x = sr * cp * cy - cr * sp * sy
         y = cr * sp * cy + sr * cp * sy
         z = cr * cp * sy - sr * sp * cy
     
-        return torch.tensor([w, x, y, z])
+        return torch.stack([w, x, y, z], dim=0)
 
     @staticmethod
     def quat_conj(quaternion):
-        return torch.tensor([quaternion[0], -quaternion[1], -quaternion[2], -quaternion[3]])
+        return torch.stack([quaternion[0], -quaternion[1], -quaternion[2], -quaternion[3]], dim=0)
 
     @staticmethod
     def quaternion_multiply(q1, q2):
@@ -69,18 +69,19 @@ class RoMaFunctions:
         y_res = w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2
         z_res = w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2
 
-        return torch.tensor([w_res, x_res, y_res, z_res])
+        return torch.stack([w_res, x_res, y_res, z_res], dim=0)
 
     @staticmethod
     def qvq_multiply(quaternion, vector):
-        v_quaternion = torch.tensor([0.0, vector[0], vector[1], vector[2]])
+
+        v_quaternion = torch.stack([ torch.zeros_like(vector[0]), vector[0], vector[1], vector[2]], dim = 0)
         q_conjugate = RoMaFunctions.quat_conj(quaternion)
         intermediate = RoMaFunctions.quaternion_multiply(quaternion, v_quaternion)
         rotated_vector_quaternion = RoMaFunctions.quaternion_multiply(intermediate, q_conjugate)
-
+        #breakpoint()
         x_res, y_res, z_res = rotated_vector_quaternion[1:]
 
-        return torch.tensor([x_res, y_res, z_res])
+        return torch.stack([x_res, y_res, z_res], dim = 0)
 
 
 def precompute_freqs_cis(dim: int, end: int, theta: float = 10000.0):
@@ -111,11 +112,11 @@ def apply_rotary_emb(
     xq_a, xq_b, xq_c = xq.float().reshape(xq.shape[:-1] + (-1, 3)).unbind(-1)
     xk_a, xk_b, xk_c = xk.float().reshape(xk.shape[:-1] + (-1, 3)).unbind(-1)
     
-    #breakpoint()
+    breakpoint()
     # reshape freqs_cos and freqs_sin for broadcasting
     freqs = reshape_for_broadcast(freqs_cos, xq_a)
     # freqs_sin = reshape_for_broadcast(freqs_sin, xq_a)
-
+    #breakpoint()
     quaternion = RoMaFunctions.e_to_q(freqs, freqs, freqs)
     
     xq_out_a = RoMaFunctions.qvq_multiply(quaternion, xq_a)
