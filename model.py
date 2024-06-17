@@ -53,12 +53,42 @@ def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor):
     shape = [d if i == 1 or i == ndim - 1 else 1 for i, d in enumerate(x.shape)]
     return freqs_cis.view(shape)
 
+def quaternion_multiply(q, r):
+    w0, x0, y0, z0 = q.unbind(-1)
+    w1, x1, y1, z1 = r.unbind(-1)
+
+    return torch.stack([
+            w0 * w1 - x0 * x1 - y0 * y1 - z0 * z1,
+            w0 * x1 + x0 * w1 + y0 * z1 - z0 * y1,
+            w0 * y1 - x0 * z1 + y0 * w1 + z0 * x1,
+            w0 * z1 + x0 * y1 - y0 * x1 + z0 * w1
+        ], dim = 1)
+
+def rotate_by_quaternion(vectors, quaternion):
+    q_conj = torch.cat([quaternion[..., :1], -quaternion[..., 1:]], dim=-1)
+    vectors = torch.cat([torch.zeros(vectors.shape[:-1] + (1,), device=vectors.device), vectors], dim=-1)
+    return quaternion_multiply(quaternion_multiply(quaternion, vectors), q_conj)[..., 1:]
+
 def apply_rotary_emb(
     xq: torch.Tensor,
     xk: torch.Tensor,
     freqs_cos: torch.Tensor,
     freqs_sin: torch.Tensor
 ) -> Tuple[torch.Tensor, torch.Tensor]:
+
+    """
+    Need to create qvq* where q = quarternion a + bi + cj + dk and v is the RoFormer equation for 3D matrix
+    q = w + xi + yj + zk
+
+    For rotation, q = cos(θ/2) + sin(θ/2) * i + sin(θ/2) * j + sin(θ/2) * k
+    q = qyaw * qpitch * qroll
+
+    qroll = [cos(θ/2), sin(θ/2)i, 0, 0]
+    qpitch = [cos(θ/2), 0, sin(θ/2)j, 0]
+    qyaw = [cos(θ/2), 0, 0, sin(θ/2)i]
+
+    q* = [q0, -q1, -q2, -q3]
+    """
 
     # reshape xq and xk to match the complex representation
     xq_a, xq_b, xq_c = xq.float().reshape(xq.shape[:-1] + (-1, 3)).unbind(-1)
@@ -82,6 +112,14 @@ def apply_rotary_emb(
     # flatten last two dimensions
     xq_out = torch.stack([xq_out_a, xq_out_b, xq_out_c], dim=-1).flatten(3)
     xk_out = torch.stack([xk_out_a, xk_out_b, xk_out_c], dim=-1).flatten(3)
+
+    print(xq_out, xk_out)
+
+    import tensorflow as tf
+    import tensorflow_graphics.geometry.transformation.quaternion as tfg_quaternion # type: ignore
+
+    xq_out = tfg_quaternion.from_rotation_matrix(xq_out)
+    xk_out = tfg_quaternion.from_rotation_matrix(xk_out)
 
     return xq_out.type_as(xq), xk_out.type_as(xk)
 
