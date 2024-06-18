@@ -72,16 +72,15 @@ class RoMaFunctions:
         return torch.stack([w_res, x_res, y_res, z_res], dim=0)
 
     @staticmethod
-    def qvq_multiply(quaternion, vector):
-
-        v_quaternion = torch.stack([ torch.zeros_like(vector[0]), vector[0], vector[1], vector[2]], dim = 0)
+    def qvq_multiply(quaternion, a, b, c):
+        v_quaternion = torch.stack([ torch.zeros_like(a), a,b,c], dim = 0)
         q_conjugate = RoMaFunctions.quat_conj(quaternion)
         intermediate = RoMaFunctions.quaternion_multiply(quaternion, v_quaternion)
         rotated_vector_quaternion = RoMaFunctions.quaternion_multiply(intermediate, q_conjugate)
-        #breakpoint()
+        # breakpoint()
         x_res, y_res, z_res = rotated_vector_quaternion[1:]
 
-        return torch.stack([x_res, y_res, z_res], dim = 0)
+        return torch.stack([x_res, y_res, z_res], dim = -1).flatten(3)
 
 
 def precompute_freqs_cis(dim: int, end: int, theta: float = 10000.0):
@@ -95,6 +94,7 @@ def precompute_freqs_cis(dim: int, end: int, theta: float = 10000.0):
 def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor):
     ndim = x.ndim
     assert 0 <= 1 < ndim
+    # breakpoint()
     assert freqs_cis.shape == (x.shape[1], x.shape[-1])
     shape = [d if i == 1 or i == ndim - 1 else 1 for i, d in enumerate(x.shape)]
     return freqs_cis.view(shape)
@@ -108,24 +108,23 @@ def apply_rotary_emb(
 ) -> Tuple[torch.Tensor, torch.Tensor]:
 
 
+    # breakpoint()
     # reshape xq and xk to match the complex representation
     xq_a, xq_b, xq_c = xq.float().reshape(xq.shape[:-1] + (-1, 3)).unbind(-1)
     xk_a, xk_b, xk_c = xk.float().reshape(xk.shape[:-1] + (-1, 3)).unbind(-1)
     
-    breakpoint()
     # reshape freqs_cos and freqs_sin for broadcasting
     freqs = reshape_for_broadcast(freqs_cos, xq_a)
     # freqs_sin = reshape_for_broadcast(freqs_sin, xq_a)
-    #breakpoint()
     quaternion = RoMaFunctions.e_to_q(freqs, freqs, freqs)
     
-    xq_out_a = RoMaFunctions.qvq_multiply(quaternion, xq_a)
-    xq_out_b = RoMaFunctions.qvq_multiply(quaternion, xq_b)
-    xq_out_c = RoMaFunctions.qvq_multiply(quaternion, xq_c)
+    #xq_out_a = RoMaFunctions.qvq_multiply(quaternion, xq_a)
+    #xq_out_b = RoMaFunctions.qvq_multiply(quaternion, xq_b)
+    #xq_out_c = RoMaFunctions.qvq_multiply(quaternion, xq_c)
 
-    xk_out_a = RoMaFunctions.qvq_multiply(quaternion, xk_a)
-    xk_out_b = RoMaFunctions.qvq_multiply(quaternion, xk_b)
-    xk_out_c = RoMaFunctions.qvq_multiply(quaternion, xk_c)
+    #xk_out_a = RoMaFunctions.qvq_multiply(quaternion, xk_a)
+    #xk_out_b = RoMaFunctions.qvq_multiply(quaternion, xk_b)
+    #xk_out_c = RoMaFunctions.qvq_multiply(quaternion, xk_c)
 
 
     # apply rotation using real numbers
@@ -139,11 +138,11 @@ def apply_rotary_emb(
     
 
     # flatten last two dimensions
-    xq_out = torch.stack([xq_out_a, xq_out_b, xq_out_c], dim=-1).flatten(3)
-    xk_out = torch.stack([xk_out_a, xk_out_b, xk_out_c], dim=-1).flatten(3)
+    xq_out = RoMaFunctions.qvq_multiply(quaternion, xq_a, xq_b, xq_c)
+    xk_out = RoMaFunctions.qvq_multiply(quaternion, xk_a, xk_b, xk_c)
 
-    print(xq_out, xk_out)
-
+    # print(xq_out, xk_out)
+    # breakpoint()
     return xq_out.type_as(xq), xk_out.type_as(xk)
 
 def repeat_kv(x: torch.Tensor, n_rep: int) -> torch.Tensor:
@@ -190,13 +189,14 @@ class Attention(nn.Module):
         freqs_sin: torch.Tensor,
     ):
         bsz, seqlen, _ = x.shape
-
+        
         # QKV
         xq, xk, xv = self.wq(x), self.wk(x), self.wv(x)
         xq = xq.view(bsz, seqlen, self.n_local_heads, self.head_dim)
         xk = xk.view(bsz, seqlen, self.n_local_kv_heads, self.head_dim)
         xv = xv.view(bsz, seqlen, self.n_local_kv_heads, self.head_dim)
 
+        # breakpoint()
         # RoPE relative positional embeddings
         xq, xk = apply_rotary_emb(xq, xk, freqs_cos, freqs_sin)
 
@@ -211,6 +211,7 @@ class Attention(nn.Module):
 
         # flash implementation
         if self.flash:
+            # breakpoint()
             output = torch.nn.functional.scaled_dot_product_attention(xq, xk, xv, attn_mask=None, dropout_p=self.dropout if self.training else 0.0, is_causal=True)
         else:
             # manual implementation
