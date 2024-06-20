@@ -41,7 +41,7 @@ eval_only = False  # if True, script exits right after the first eval
 always_save_checkpoint = True  # if True, always save a checkpoint after each eval
 init_from = "scratch"  # 'scratch' or 'resume'
 # wandb logging
-wandb_log = False  # disabled by default
+wandb_log = True  # disabled by default
 wandb_project = "llamac"
 wandb_run_name = "run" + datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 # data
@@ -58,11 +58,11 @@ multiple_of = 32
 dropout = 0.0
 # adamw optimizer
 gradient_accumulation_steps = 4  # used to simulate larger batch sizes
-learning_rate = 1e-5  # max learning rate
+learning_rate = 1e-3  # max learning rate           Original Value - 1e-5
 max_iters = 100000  # total number of training iterations
-weight_decay = 5e-1
-beta1 = 0.9
-beta2 = 0.95
+weight_decay = 1e-1
+beta1 = 0.9        
+beta2 = 0.95               # Value suggested in Adam paper - 0.999
 grad_clip = 1.0  # clip gradients at this value, or disable if == 0.0
 # learning rate decay settings
 decay_lr = True  # whether to decay the learning rate
