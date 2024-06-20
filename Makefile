@@ -5,13 +5,13 @@ CC = gcc
 # the most basic way of building that is most likely to work on most systems
 .PHONY: run
 run: run.c
-	$(CC) -O3 -o run run.c -lm
+	$(CC) -O3 -o run run2.c -lm
 	$(CC) -O3 -o runq runq.c -lm
 
 # useful for a debug build, can then e.g. analyze with valgrind, example:
 # $ valgrind --leak-check=full ./run out/model.bin -n 3
-rundebug: run.c
-	$(CC) -g -o run run.c -lm
+rundebug: run2.c
+	$(CC) -g -o run run2.c -lm
 	$(CC) -g -o runq runq.c -lm
 
 # https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html
@@ -24,8 +24,8 @@ rundebug: run.c
 # It turns off -fsemantic-interposition.
 # In our specific application this is *probably* okay to use
 .PHONY: runfast
-runfast: run.c
-	$(CC) -Ofast -o run run.c -lm
+runfast: run2.c
+	$(CC) -Ofast -o run run2.c -lm
 	$(CC) -Ofast -o runq runq.c -lm
 
 # additionally compiles with OpenMP, allowing multithreaded runs
@@ -33,23 +33,23 @@ runfast: run.c
 # OMP_NUM_THREADS=4 ./run out/model.bin
 .PHONY: runomp
 runomp: run.c
-	$(CC) -Ofast -fopenmp -march=native run.c  -lm  -o run
+	$(CC) -Ofast -fopenmp -march=native run2.c  -lm  -o run
 	$(CC) -Ofast -fopenmp -march=native runq.c  -lm  -o runq
 
 .PHONY: win64
 win64:
-	x86_64-w64-mingw32-gcc -Ofast -D_WIN32 -o run.exe -I. run.c win.c
+	x86_64-w64-mingw32-gcc -Ofast -D_WIN32 -o run.exe -I. run2.c win.c
 	x86_64-w64-mingw32-gcc -Ofast -D_WIN32 -o runq.exe -I. runq.c win.c
 
 # compiles with gnu99 standard flags for amazon linux, coreos, etc. compatibility
 .PHONY: rungnu
 rungnu:
-	$(CC) -Ofast -std=gnu11 -o run run.c -lm
+	$(CC) -Ofast -std=gnu11 -o run run2.c -lm
 	$(CC) -Ofast -std=gnu11 -o runq runq.c -lm
 
 .PHONY: runompgnu
 runompgnu:
-	$(CC) -Ofast -fopenmp -std=gnu11 run.c  -lm  -o run
+	$(CC) -Ofast -fopenmp -std=gnu11 run2.c  -lm  -o run
 	$(CC) -Ofast -fopenmp -std=gnu11 runq.c  -lm  -o runq
 
 # run all tests
