@@ -337,8 +337,8 @@ float* forward(Transformer* transformer, int token, int pos) {
                 double result[3];
                 qvq_multiply(q, v0, v1, v2, result);
                 vec[i] = result[0];
-                vec[i+1] = result[0];
-                vec[i+2] = result[0];
+                vec[i+1] = result[1];
+                vec[i+2] = result[2];
 
             }
         }
