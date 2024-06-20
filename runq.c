@@ -133,6 +133,62 @@ void free_run_state(RunState* s) {
     free(s->value_cache);
 }
 
+
+// ----------------------------------------------------------------------------
+// Quaternion
+typedef struct {
+    double w, x, y, z;
+} Quaternion;
+
+Quaternion e_to_q(double roll, double pitch, double yaw) {
+    double cy = cos(yaw * 0.5);
+    double sy = sin(yaw * 0.5);
+    double cp = cos(pitch * 0.5);
+    double sp = sin(pitch * 0.5);
+    double cr = cos(roll * 0.5);
+    double sr = sin(roll * 0.5);
+
+    Quaternion q;
+    q.w = cr * cp * cy + sr * sp * sy;
+    q.x = sr * cp * cy - cr * sp * sy;
+    q.y = cr * sp * cy + sr * cp * sy;
+    q.z = cr * cp * sy - sr * sp * cy;
+
+    return q;
+}
+
+Quaternion quat_conj(Quaternion q) {
+    Quaternion conj;
+    conj.w = q.w;
+    conj.x = -q.x;
+    conj.y = -q.y;
+    conj.z = -q.z;
+
+    return conj;
+}
+
+Quaternion quaternion_multiply(Quaternion q1, Quaternion q2) {
+    Quaternion result;
+    result.w = q1.w * q2.w - q1.x * q2.x - q1.y * q2.y - q1.z * q2.z;
+    result.x = q1.w * q2.x + q1.x * q2.w + q1.y * q2.z - q1.z * q2.y;
+    result.y = q1.w * q2.y - q1.x * q2.z + q1.y * q2.w + q1.z * q2.x;
+    result.z = q1.w * q2.z + q1.x * q2.y - q1.y * q2.x + q1.z * q2.w;
+
+    return result;
+}
+
+void qvq_multiply(Quaternion quaternion, double a, double b, double c, double *result) {
+        
+    Quaternion v_quaternion = {0.0, a, b, c};
+    Quaternion q_conjugate = quat_conj(quaternion);
+    Quaternion intermediate = quaternion_multiply(quaternion, v_quaternion);
+    Quaternion rotated_vector_quaternion = quaternion_multiply(intermediate, q_conjugate);
+
+    result[0] = rotated_vector_quaternion.x;
+    result[1] = rotated_vector_quaternion.y;
+    result[2] = rotated_vector_quaternion.z;
+}
+
 // ----------------------------------------------------------------------------
 // Quantization functions
 
@@ -374,17 +430,22 @@ float* forward(Transformer* transformer, int token, int pos) {
             int head_dim = i % head_size;
             float freq = 1.0f / powf(10000.0f, head_dim / (float)head_size);
             float val = pos * freq;
-            float fcos = cosf(val);
-            float fsin = sinf(val);
+            float fcos = val;
+            float fsin = val;
             int rotn = i < kv_dim ? 2 : 1; // how many vectors? 2 = q & k, 1 = q only
             for (int v = 0; v < rotn; v++) {
                 float* vec = v == 0 ? s->q : s->k; // the vector to rotate (query or key)
                 float v0 = vec[i];
                 float v1 = vec[i+1];
                 float v2 = vec[i+2];
-                vec[i]   = v0 * fcos * fcos - v1 * fsin * fcos + v2 * fsin;
-                vec[i+1] = v0 * (fsin + 1.0f) * fsin * fcos + v1 * (fcos * fcos - fsin * fsin * fsin) - v2 * fsin * fcos;
-                vec[i+2] = v0 * (fsin - fcos * fcos) * fsin + v1 * (fsin + 1) * fsin * fcos + v2 * fcos * fcos;
+                // vec[i]   = v0 * fcos * fcos - v1 * fsin * fcos + v2 * fsin;
+                // vec[i+1] = v0 * (fsin + 1.0f) * fsin * fcos + v1 * (fcos * fcos - fsin * fsin * fsin) - v2 * fsin * fcos;
+                // vec[i+2] = v0 * (fsin - fcos * fcos) * fsin + v1 * (fsin + 1) * fsin * fcos + v2 * fcos * fcos;
+                double result[3];
+                qvq_multiply(q, v0, v1, v2, result);
+                vec[i] = result[0];
+                vec[i+1] = result[0];
+                vec[i+2] = result[0];
             }
         }
 
