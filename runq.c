@@ -433,6 +433,7 @@ float* forward(Transformer* transformer, int token, int pos) {
             float fcos = val;
             float fsin = val;
             int rotn = i < kv_dim ? 2 : 1; // how many vectors? 2 = q & k, 1 = q only
+            Quaternion q = e_to_q(fcos, fcos, fcos);
             for (int v = 0; v < rotn; v++) {
                 float* vec = v == 0 ? s->q : s->k; // the vector to rotate (query or key)
                 float v0 = vec[i];
