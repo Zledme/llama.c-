@@ -117,7 +117,7 @@ def apply_rotary_emb(
     freqs = reshape_for_broadcast(freqs_cos, xq_a)
     # freqs_sin = reshape_for_broadcast(freqs_sin, xq_a)
 # Issue - Why to divide by 2 when e_to_q multiplies freqs with 0.5 anyways
-    quaternion = RoMaFunctions.e_to_q(freqs/2, freqs/2, freqs/2)
+    quaternion = RoMaFunctions.e_to_q(freqs, freqs, freqs)
     
     #xq_out_a = RoMaFunctions.qvq_multiply(quaternion, xq_a)
     #xq_out_b = RoMaFunctions.qvq_multiply(quaternion, xq_b)
