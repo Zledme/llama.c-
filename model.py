@@ -48,10 +48,10 @@ class RoMaFunctions:
         cr = torch.cos(roll * 0.5)
         sr = torch.sin(roll * 0.5)
     
-        w = cr * cp * cy + sr * sp * sy
-        x = sr * cp * cy - cr * sp * sy
-        y = cr * sp * cy + sr * cp * sy
-        z = cr * cp * sy - sr * sp * cy
+         w = cr * cp * cy - sr * sp * sy
+        x = sr * cp * cy + cr * sp * sy
+        y = cr * sp * cy - sr * cp * sy
+        z = cr * cp * sy + sr * sp * cy
     
         return torch.stack([w, x, y, z], dim=0)
 
