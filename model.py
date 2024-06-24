@@ -116,7 +116,7 @@ def apply_rotary_emb(
     # reshape freqs_cos and freqs_sin for broadcasting
     freqs = reshape_for_broadcast(freqs_cos, xq_a)
     # freqs_sin = reshape_for_broadcast(freqs_sin, xq_a)
-    quaternion = RoMaFunctions.e_to_q(freqs, freqs, freqs)
+    quaternion = RoMaFunctions.e_to_q(freqs/2, freqs/2, freqs/2)
     
     #xq_out_a = RoMaFunctions.qvq_multiply(quaternion, xq_a)
     #xq_out_b = RoMaFunctions.qvq_multiply(quaternion, xq_b)
