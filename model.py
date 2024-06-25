@@ -82,12 +82,6 @@ class RoMaFunctions:
 
         return torch.stack([x_res, y_res, z_res], dim = -1).flatten(3)
 
-    # axis = axis / torch.norm(axis, dim=-1, keepdim=True)
-    # half_angle = angle / 2.0
-    # sin_half = torch.sin(half_angle)
-    # return torch.cat([torch.cos(half_angle), axis * sin_half], dim=-1)
-
-
 
 def precompute_freqs_cis(dim: int, end: int, theta: float = 10000.0):
     freqs = 1.0 / (theta ** (torch.arange(0, dim, 2)[: (dim // 3)].float() / dim))
@@ -115,12 +109,19 @@ def apply_rotary_emb(
 
     xq_a, xq_b, xq_c = xq.float().reshape(xq.shape[:-1] + (-1, 3)).unbind(-1)
     xk_a, xk_b, xk_c = xk.float().reshape(xk.shape[:-1] + (-1, 3)).unbind(-1)
-
+ 
     # reshape freqs_cos and freqs_sin for broadcasting
     freqs = reshape_for_broadcast(freqs_cos, xq_a)
     # freqs_sin = reshape_for_broadcast(freqs_sin, xq_a)
 
-    quaternion = RoMaFunctions.e_to_q(freqs, freqs, freqs)
+    rot_axis = torch.tensor([1.0]) / torch.sqrt(torch.tensor(3.0))
+    axis = rot_axis / torch.norm(rot_axis, dim=-1, keepdim=True)
+    half_angle = freqs / 2.0
+    sin_half = torch.sin(half_angle)
+    # return torch.cat([torch.cos(half_angle), axis * sin_half], dim=-1)
+    quaternion = torch.stack([torch.cos(half_angle), rot_axis * sin_half, rot_axis * sin_half, rot_axis * sin_half], dim=0)
+    
+    # quaternion = RoMaFunctions.e_to_q(half_angle, half_angle, half_angle)
     
     xq_out = RoMaFunctions.qvq_multiply(quaternion, xq_a, xq_b, xq_c)
     xk_out = RoMaFunctions.qvq_multiply(quaternion, xk_a, xk_b, xk_c)
