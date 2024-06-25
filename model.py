@@ -114,7 +114,7 @@ def apply_rotary_emb(
     freqs = reshape_for_broadcast(freqs_cos, xq_a)
     # freqs_sin = reshape_for_broadcast(freqs_sin, xq_a)
 
-    rot_axis = torch.tensor([1.0]) / torch.sqrt(torch.tensor(3.0))
+    rot_axis = torch.tensor([1.0], device=freqs.device) / torch.sqrt(torch.tensor(3.0))
     axis = rot_axis / torch.norm(rot_axis, dim=-1, keepdim=True)
     half_angle = freqs / 2.0
     sin_half = torch.sin(half_angle)
