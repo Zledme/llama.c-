@@ -128,7 +128,6 @@ void qvq_multiply(Quaternion quaternion, double a, double b, double c, double *r
     result[2] = rotated_vector_quaternion.z;
 }
 
-
 void malloc_run_state(RunState* s, Config* p) {
     // we calloc instead of malloc to keep valgrind happy
     int kv_dim = (p->dim * p->n_kv_heads) / p->n_heads;
@@ -321,10 +320,13 @@ float* forward(Transformer* transformer, int token, int pos) {
             int head_dim = i % head_size;
             float freq = 1.0f / powf(10000.0f, head_dim / (float)head_size);
             float val = pos * freq;
-            float fcos = val;
-            float fsin = val;
+            float fcos = cos(val/4.0);
+            float fsin = sin(val/4.0);
             int rotn = i < kv_dim ? 2 : 1; // how many vectors? 2 = q & k, 1 = q only
-            Quaternion q = e_to_q(fcos, fcos, fcos);
+            
+            double rot_axis = (1.0 / sqrt(3.0));
+            Quaternion quat = {fcos*rot_axis, fsin*rot_axis, fsin*rot_axis, fsin*rot_axis};
+            
             for (int v = 0; v < rotn; v++) {
                 float* vec = v == 0 ? s->q : s->k; // the vector to rotate (query or key)
                 float v0 = vec[i];
@@ -335,7 +337,7 @@ float* forward(Transformer* transformer, int token, int pos) {
                 // vec[i+1] = v0 * (fsin + 1.0f) * fsin * fcos + v1 * (fcos * fcos - fsin * fsin * fsin) - v2 * fsin * fcos;
                 // vec[i+2] = v0 * (fsin - fcos * fcos) * fsin + v1 * (fsin + 1) * fsin * fcos + v2 * fcos * fcos;
                 double result[3];
-                qvq_multiply(q, v0, v1, v2, result);
+                qvq_multiply(quat, v0, v1, v2, result);
                 vec[i] = result[0];
                 vec[i+1] = result[1];
                 vec[i+2] = result[2];
