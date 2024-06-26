@@ -430,8 +430,8 @@ float* forward(Transformer* transformer, int token, int pos) {
             int head_dim = i % head_size;
             float freq = 1.0f / powf(10000.0f, head_dim / (float)head_size);
             float val = pos * freq;
-            float fcos = val;
-            float fsin = val;
+            float fcos = cos(val/4.0);
+            float fsin = sin(val/4.0);
             int rotn = i < kv_dim ? 2 : 1; // how many vectors? 2 = q & k, 1 = q only
 
 
