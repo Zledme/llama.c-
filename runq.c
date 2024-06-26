@@ -433,7 +433,18 @@ float* forward(Transformer* transformer, int token, int pos) {
             float fcos = val;
             float fsin = val;
             int rotn = i < kv_dim ? 2 : 1; // how many vectors? 2 = q & k, 1 = q only
-            Quaternion q = e_to_q(fcos, fcos, fcos);
+
+
+            // rot_axis = torch.tensor([1.0], device=freqs.device) / torch.sqrt(torch.tensor(3.0))
+            // axis = rot_axis / torch.norm(rot_axis, dim=-1, keepdim=True)
+            // half_angle = freqs / 4.0
+            // sin_half = torch.sin(half_angle)
+            // quaternion = torch.stack([torch.cos(half_angle), rot_axis * sin_half, rot_axis * sin_half, rot_axis * sin_half], dim=0)
+            
+            double rot_axis = (1.0 / sqrt(3.0));
+            Quaternion quat = {fcos*rot_axis, fsin*rot_axis, fsin*rot_axis, fsin*rot_axis};
+            
+            // Quaternion q = e_to_q(fcos, fcos, fcos);
             for (int v = 0; v < rotn; v++) {
                 float* vec = v == 0 ? s->q : s->k; // the vector to rotate (query or key)
                 float v0 = vec[i];
@@ -443,7 +454,7 @@ float* forward(Transformer* transformer, int token, int pos) {
                 // vec[i+1] = v0 * (fsin + 1.0f) * fsin * fcos + v1 * (fcos * fcos - fsin * fsin * fsin) - v2 * fsin * fcos;
                 // vec[i+2] = v0 * (fsin - fcos * fcos) * fsin + v1 * (fsin + 1) * fsin * fcos + v2 * fcos * fcos;
                 double result[3];
-                qvq_multiply(q, v0, v1, v2, result);
+                qvq_multiply(quat, v0, v1, v2, result);
                 vec[i] = result[0];
                 vec[i+1] = result[1];
                 vec[i+2] = result[2];
