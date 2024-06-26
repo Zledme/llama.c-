@@ -116,7 +116,7 @@ def apply_rotary_emb(
 
     rot_axis = torch.tensor([1.0], device=freqs.device) / torch.sqrt(torch.tensor(3.0))
     axis = rot_axis / torch.norm(rot_axis, dim=-1, keepdim=True)
-    half_angle = freqs / 2.0
+    half_angle = freqs / 4.0
     sin_half = torch.sin(half_angle)
     # return torch.cat([torch.cos(half_angle), axis * sin_half], dim=-1)
     quaternion = torch.stack([torch.cos(half_angle), rot_axis * sin_half, rot_axis * sin_half, rot_axis * sin_half], dim=0)
